@@ -1,0 +1,288 @@
+export class cQuerys {
+  //1. CLIENTES
+
+  static getClientes = `
+        SELECT 
+            C.CODCLIENTE
+            ,C.CODCONTABLE
+            ,C.NOMBRECLIENTE
+            ,C.NOMBRECOMERCIAL
+            ,C.CIF 
+            ,C.NIF20
+            ,C.DIRECCION1
+            ,C.CODPOSTAL
+            ,C.POBLACION
+            ,C.PROVINCIA
+            ,C.PAIS
+            ,C.TELEFONO1
+            ,C.TELEFONO2
+            ,C.E_MAIL
+            ,C.ZONA
+        FROM 
+            CLIENTES C
+  `;
+
+  static getCliente = `
+    SELECT 
+        C.CODCLIENTE
+        ,C.CODCONTABLE
+        ,C.NOMBRECLIENTE
+        ,C.NOMBRECOMERCIAL
+        ,C.CIF 
+        ,C.NIF20
+        ,C.DIRECCION1
+        ,C.CODPOSTAL
+        ,C.POBLACION
+        ,C.PROVINCIA
+        ,C.PAIS
+        ,C.TELEFONO1
+        ,C.TELEFONO2
+        ,C.E_MAIL
+        ,C.ZONA
+    FROM 
+        CLIENTES C
+    WHERE 
+        C.CODCLIENTE = @CODCLIENTE
+  `;
+
+  static getCountClientes = `
+    SELECT COUNT(*) as total FROM CLIENTES
+  `;
+
+  //2. FACTURAS VENTAS
+
+  static getFacturasVentas = `
+      SELECT 
+          FV.NUMSERIE,
+          FV.NUMFACTURA,
+          FV.FECHA,
+          FV.CODCLIENTE,
+          ROUND(rip.F_GET_COTIZACION_RIP(FV.TOTALNETO, FV.FECHA, FV.FACTORMONEDA, FV.CODMONEDA, 1), 2) TOTALNETO_BS, 
+          ROUND(rip.F_GET_COTIZACION_RIP(FV.TOTALNETO, FV.FECHA, FV.FACTORMONEDA, FV.CODMONEDA, 2), 2) TOTALNETO_USD, 
+          C.NOMBRECLIENTE,
+          C.NIF20,
+          C.DIRECCION1,
+          NULL AS CODIGO_SICM
+      FROM 
+          FACTURASVENTA FV 
+          LEFT JOIN ALBVENTACAB AVC ON FV.NUMSERIE = AVC.NUMSERIEFAC AND FV.NUMFACTURA = AVC.NUMFAC AND FV.N = AVC.NFAC
+          LEFT JOIN CLIENTES C ON FV.CODCLIENTE = C.CODCLIENTE
+      WHERE
+          FV.N = 'B'
+      ORDER BY 
+          FV.NUMSERIE DESC,
+          FV.NUMFACTURA DESC
+      OFFSET @OFFSET ROWS 
+      FETCH NEXT @LIMIT ROWS ONLY
+  `;
+
+  static getFacturaVenta = `
+      SELECT 
+          FV.NUMSERIE,
+          FV.NUMFACTURA,
+          FV.FECHA,
+          FV.CODCLIENTE,
+		      ROUND(rip.F_GET_COTIZACION_RIP(FV.TOTALNETO, FV.FECHA, FV.FACTORMONEDA, FV.CODMONEDA, 1), 2) TOTALNETO_BS, 
+		      ROUND(rip.F_GET_COTIZACION_RIP(FV.TOTALNETO, FV.FECHA, FV.FACTORMONEDA, FV.CODMONEDA, 2), 2) TOTALNETO_USD, 
+          C.NOMBRECLIENTE AS RAZONSOCIAL,
+          C.NIF20,
+          C.DIRECCION1
+      FROM 
+          FACTURASVENTA FV 
+			    LEFT JOIN ALBVENTACAB AVC ON FV.NUMSERIE = AVC.NUMSERIEFAC AND FV.NUMFACTURA = AVC.NUMFAC AND FV.N = AVC.NFAC
+          LEFT JOIN CLIENTES C ON FV.CODCLIENTE = C.CODCLIENTE
+      WHERE
+          FV.NUMSERIE LIKE @SERIE + '%'
+          AND FV.NUMFACTURA = @NUMERO
+			    AND FV.N = 'B' 
+  `;
+
+  static getFacturaVentaDetalle = `
+      SELECT 
+          AVL.CODARTICULO,
+          MAX(AVL.DESCRIPCION) AS DESCRIPCION, 
+          ROUND((RIP.F_GET_COTIZACION_RIP(MAX(PRECIO), MAX(AVC.FECHA), MAX(AVC.FACTORMONEDA), MAX(AVC.CODMONEDA), 1 )), 2) PRECIOBS,
+          ROUND((RIP.F_GET_COTIZACION_RIP(MAX(PRECIO), MAX(AVC.FECHA), MAX(AVC.FACTORMONEDA), MAX(AVC.CODMONEDA), 2 )), 2) PRECIOUSD,
+          MAX(AVL.REFERENCIA) AS REFERENCIA,
+          MAX(AVL.CODALMACEN) AS ALMACEN, 
+          MIN(AL.TALLA) AS TALLA, 
+          MIN(AL.COLOR) AS COLOR,
+          SUM(AVL.UNIDADESTOTAL) AS CANTIDAD
+      FROM 
+          ALBVENTALIN AVL
+          INNER JOIN ALBVENTACAB AVC ON AVL.NUMSERIE = AVC.NUMSERIE AND AVL.NUMALBARAN = AVC.NUMALBARAN AND AVL.N = AVC.N
+          LEFT JOIN ARTICULOSLIN AL ON AVL.CODARTICULO = AL.CODARTICULO AND AVL.TALLA = AL.TALLA AND AVL.COLOR = AL.COLOR
+          LEFT JOIN ARTICULOS A ON AVL.CODARTICULO = A.CODARTICULO
+      WHERE
+          AVC.NUMSERIEFAC LIKE @SERIE + '%'
+          AND AVC.NUMFAC = @NUMERO
+          AND AVC.NFAC = 'B'
+      GROUP BY 
+          AVL.CODARTICULO
+  `;
+
+  static getCountFacturasVentas = `
+    SELECT COUNT(*) as total FROM FACTURASVENTA WHERE N = 'B'
+  `;
+
+  //3. ALBARANES VENTA
+
+  static getAlbaranesVenta = `
+      SELECT 
+          AVC.NUMSERIE
+          , AVC.NUMALBARAN
+          , AVC.NUMSERIEFAC
+          , AVC.NUMFAC
+          , AVC.FACTURADO
+          , AVC.FECHA
+          , AVC.CODCLIENTE
+          , ROUND(rip.F_GET_COTIZACION_RIP(AVC.TOTALNETO, AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 1), 2) TOTALNETO_BS
+          , ROUND(rip.F_GET_COTIZACION_RIP(AVC.TOTALNETO, AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 2), 2) TOTALNETO_USD
+          , C.NOMBRECLIENTE
+          , C.NIF20
+          , C.DIRECCION1
+          , NULL AS CODIGO_SICM
+        FROM 
+            ALBVENTACAB AVC 
+            LEFT JOIN CLIENTES C ON AVC.CODCLIENTE = C.CODCLIENTE
+        WHERE 
+            AVC.N = 'B'
+        ORDER BY 
+            AVC.NUMSERIE DESC, 
+            AVC.NUMALBARAN DESC
+        OFFSET @OFFSET ROWS 
+        FETCH NEXT @LIMIT ROWS ONLY
+  `;
+
+  static getAlbaranVenta = `
+        SELECT 
+          AVC.NUMSERIE
+          , AVC.NUMALBARAN
+          , AVC.NUMSERIEFAC
+          , AVC.NUMFAC
+          , AVC.FACTURADO
+          , AVC.FECHA
+          , AVC.CODCLIENTE
+          , ROUND(rip.F_GET_COTIZACION_RIP(AVC.TOTALNETO, AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 1), 2) TOTALNETO_BS
+          , ROUND(rip.F_GET_COTIZACION_RIP(AVC.TOTALNETO, AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 2), 2) TOTALNETO_USD
+          , C.NOMBRECLIENTE AS RAZONSOCIAL
+          , C.NIF20
+          , C.DIRECCION1
+          , NULL AS CODIGO_SICM 
+        FROM 
+            ALBVENTACAB AVC
+            LEFT JOIN CLIENTES C ON AVC.CODCLIENTE = C.CODCLIENTE 
+        WHERE 
+          AVC.NUMSERIE LIKE @SERIE + '%'
+          AND AVC.NUMALBARAN = @NUMERO
+          AND AVC.N = 'B'
+  `;
+
+  static getAlbaranVentaDetalle = `
+        SELECT 
+            AVL.CODARTICULO
+            , MAX(AVL.DESCRIPCION) AS DESCRIPCION
+            , ROUND((rip.F_GET_COTIZACION_RIP(MAX(PRECIO), MAX(AVC.FECHA), MAX(AVC.FACTORMONEDA), MAX(AVC.CODMONEDA), 1 )), 2) PRECIOBS
+            , ROUND((rip.F_GET_COTIZACION_RIP(MAX(PRECIO), MAX(AVC.FECHA), MAX(AVC.FACTORMONEDA), MAX(AVC.CODMONEDA), 2 )), 2) PRECIOUSD
+            , MAX(AVL.REFERENCIA) AS REFERENCIA
+            , MAX(AVL.CODALMACEN) AS ALMACEN
+            , MIN(AL.TALLA) AS TALLA
+            , MIN(AL.COLOR) AS COLOR
+            , SUM(AVL.UNIDADESTOTAL) AS CANTIDAD
+        FROM 
+            ALBVENTALIN AVL
+            INNER JOIN ALBVENTACAB AVC ON AVL.NUMSERIE = AVC.NUMSERIE AND AVL.NUMALBARAN = AVC.NUMALBARAN AND AVL.N = AVC.N
+            LEFT JOIN ARTICULOSLIN AL ON AVL.CODARTICULO = AL.CODARTICULO AND AVL.TALLA = AL.TALLA AND AVL.COLOR = AL.COLOR
+            LEFT JOIN ARTICULOS A ON AVL.CODARTICULO = A.CODARTICULO
+        WHERE
+          AVC.NUMSERIE LIKE @SERIE + '%'
+          AND AVC.NUMALBARAN = @NUMERO
+          AND AVC.N = 'B'
+        GROUP BY 
+          AVL.CODARTICULO
+  `;
+
+  static getCountAlbaranVenta = `
+    SELECT COUNT(*) as total FROM ALBVENTACAB WHERE N = 'B'
+  `;
+
+  //4. DESPACHOS
+
+  static insertarDespachosMasivo = `
+    BEGIN TRY 
+      BEGIN TRANSACTION; 
+
+      INSERT INTO RIP.DESPACHOSCAB (NUMDESPACHO, RUTA, TRANSPORTISTA, NIF20, UNIDAD, 
+      PLACA1, TRASBORDO, PLACA2, DESPACHADO, RUTERO, FECHADESPACHO
+      )
+      SELECT
+        NUMDESPACHO, RUTA, TRANSPORTISTA, NIF20, UNIDAD, PLACA1, TRASBORDO, PLACA2, 
+        'F', RUTERO, GETDATE()
+      FROM OPENJSON(@JsonData)
+      WITH (
+        numDespacho NVARCHAR(100),
+        ruta NVARCHAR(100),
+        transportista NVARCHAR(100), 
+        nif20 NVARCHAR(100), 
+        unidad NVARCHAR(100), 
+        placa1 NVARCHAR(100), 
+        trasbordo NVARCHAR(100), 
+        placa2 NVARCHAR(100),
+        rutero NVARCHAR(100)
+      ); 
+      INSERT INTO RIP.DESPACHOSLIN (
+        NUMDESPACHO, SERIEDOC, NUMDOC, TIPODOC, IDPEDIDO, CODCLIENTE
+      )
+      SELECT 
+        Cabecera.numDespacho, 
+        Detalle.serieDoc, 
+        Detalle.numDoc, 
+        Detalle.tipoDoc, 
+        Detalle.idPedido, 
+        Detalle.codCliente
+      FROM OPENJSON(@JsonData)
+      WITH (
+        numDespacho NVARCHAR(100), 
+        documentos NVARCHAR(MAX) AS JSON
+      ) AS Cabecera
+      CROSS APPLY OPENJSON(Cabecera.documentos)
+      WITH (
+        serieDoc NVARCHAR(100), 
+        numDoc NVARCHAR(100), 
+        tipoDoc VARCHAR(1),
+        idPedido NVARCHAR(100), 
+        codCliente INT
+      ) AS Detalle;
+
+      COMMIT TRANSACTION;
+    END TRY 
+    BEGIN CATCH 
+      IF @@TRANCOUNT > 0 ROLLBACK TRANSACTION; 
+      THROW; 
+    END CATCH
+  
+  `;
+
+  static getDespachoCompleto = `
+    SELECT 
+      DC.NUMDESPACHO,
+      DC.RUTA, 
+      DC.TRANSPORTISTA, 
+      DC.NIF20, 
+      DC.UNIDAD, 
+      DC.PLACA1, 
+      DC.TRASBORDO, 
+      DC.PLACA2, 
+      DC.DESPACHADO, 
+      DC.RUTERO,
+      DC.FECHADESPACHO, 
+      DL.TIPODOC, 
+      DL.IDPEDIDO, 
+      DL.CODCLIENTE
+    FROM 
+      RIP.DESPACHOSCAB DC 
+      INNER JOIN RIP.DESPACHOSLIN DL ON DC.NUMDESPACHO = DL.NUMDESPACHO 
+    WHERE 
+      DC.NUMDESPACHO = @NUMDESPACHO
+  `;
+}
