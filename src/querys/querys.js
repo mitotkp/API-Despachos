@@ -76,6 +76,25 @@ export class cQuerys {
       FETCH NEXT @LIMIT ROWS ONLY
   `;
 
+  static auxSearchFv = `
+      SELECT 
+          FV.NUMSERIE,
+          FV.NUMFACTURA,
+          FV.FECHA,
+          FV.CODCLIENTE,
+          ROUND(rip.F_GET_COTIZACION_RIP(FV.TOTALNETO, FV.FECHA, FV.FACTORMONEDA, FV.CODMONEDA, 1), 2) TOTALNETO_BS, 
+          ROUND(rip.F_GET_COTIZACION_RIP(FV.TOTALNETO, FV.FECHA, FV.FACTORMONEDA, FV.CODMONEDA, 2), 2) TOTALNETO_USD, 
+          C.NOMBRECLIENTE,
+          C.NIF20,
+          C.DIRECCION1
+      FROM 
+          FACTURASVENTA FV 
+          LEFT JOIN ALBVENTACAB AVC ON FV.NUMSERIE = AVC.NUMSERIEFAC AND FV.NUMFACTURA = AVC.NUMFAC AND FV.N = AVC.NFAC
+          LEFT JOIN CLIENTES C ON FV.CODCLIENTE = C.CODCLIENTE
+      WHERE
+          FV.N = 'B'
+  `;
+
   static getFacturaVenta = `
       SELECT 
           FV.NUMSERIE,
@@ -121,6 +140,11 @@ export class cQuerys {
           AVL.CODARTICULO
   `;
 
+  static auxSearchFvDetalle = `
+  `;
+
+
+
   static getCountFacturasVentas = `
     SELECT COUNT(*) as total FROM FACTURASVENTA WHERE N = 'B'
   `;
@@ -152,6 +176,27 @@ export class cQuerys {
             AVC.NUMALBARAN DESC
         OFFSET @OFFSET ROWS 
         FETCH NEXT @LIMIT ROWS ONLY
+  `;
+
+  static auxSearchAv = `
+      SELECT 
+          AVC.NUMSERIE
+          , AVC.NUMALBARAN
+          , AVC.NUMSERIEFAC
+          , AVC.NUMFAC
+          , AVC.FACTURADO
+          , AVC.FECHA
+          , AVC.CODCLIENTE
+          , ROUND(rip.F_GET_COTIZACION_RIP(AVC.TOTALNETO, AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 1), 2) TOTALNETO_BS
+          , ROUND(rip.F_GET_COTIZACION_RIP(AVC.TOTALNETO, AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 2), 2) TOTALNETO_USD
+          , C.NOMBRECLIENTE
+          , C.NIF20
+          , C.DIRECCION1
+        FROM 
+            ALBVENTACAB AVC 
+            LEFT JOIN CLIENTES C ON AVC.CODCLIENTE = C.CODCLIENTE
+        WHERE 
+            AVC.N = 'B'
   `;
 
   static getAlbaranVenta = `

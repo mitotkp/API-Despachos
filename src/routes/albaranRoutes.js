@@ -15,3 +15,7 @@ albaranRoutes.get("/alDetail", cAlbaranController.obtenerUna);
 //3. Obtiene solo los detalles de un albaran
 //GET /api/albaranes/alDetailOnly?serie=serie&numero=numero
 albaranRoutes.get("/alDetailOnly", cAlbaranController.verSoloDetalles);
+
+//4. Busca albaranes por serie, numero, cliente, fecha, etc.
+//GET /api/albaranes/buscar?serie=serie&numero=numero&codCliente=codCliente&fechaDesde=fechaDesde&fechaHasta=fechaHasta&termino=termino&page=page&limit=limit
+albaranRoutes.get("/buscar", cAlbaranController.search);

@@ -2,6 +2,7 @@
 import { z } from "zod";
 import { getConnection, sql } from "../config/db.js";
 import { cQuerys } from "../querys/querys.js";
+import { searchSchema } from "../schemas/searchSchemas.js";
 
 const paginationSchema = z.object({
   page: z.number().int().min(1).default(1),
@@ -104,5 +105,54 @@ export class cFacturasService {
       .query(cQuerys.getFacturaVentaDetalle);
 
     return detailResult.recordset;
+  }
+
+  /**
+   * Búsqueda de facturas
+   * @param {z.infer<typeof searchSchema>} params
+   */
+
+  static async search(params) {
+    const filters = searchSchema.parse(params);
+    const pool = await getConnection();
+    const request = pool.request();
+
+    let whereClause = "WHERE FV.N = 'B'";
+
+    if (filters.serie) {
+      whereClause += ` AND FV.NUMSERIE = @SERIE`;
+      request.input("SERIE", sql.VarChar, filters.serie);
+    }
+
+    if (filters.numero) {
+      whereClause += ` AND FV.NUMFACTURA = @NUMERO`;
+      request.input("NUMERO", sql.Int, filters.numero);
+    }
+
+    if (filters.codCliente) {
+      whereClause += ` AND FV.CODCLIENTE = @CODCLIENTE`;
+      request.input("CODCLIENTE", sql.Int, filters.codCliente);
+    }
+
+    if (filters.fechaDesde) {
+      whereClause += ` AND FV.FECHA >= @FECHADESDE`;
+      request.input("FECHADESDE", sql.Date, filters.fechaDesde);
+    }
+
+    if (filters.fechaHasta) {
+      whereClause += ` AND FV.FECHA <= @FECHAHASTA`;
+      request.input("FECHAHASTA", sql.Date, filters.fechaHasta);
+    }
+
+    if (filters.termino) {
+      whereClause += " AND (C.NOMBRECLIENTE LIKE '%' + @TERMINO + '%' OR C.NIF20 LIKE '%' + @TERMINO + '%') ";
+      request.input("TERMINO", sql.VarChar, `%${filters.termino}%`);
+    }
+
+    const offset = (filters.page - 1) * filters.limit;
+    request.input("OFFSET", sql.Int, offset);
+    request.input("LIMIT", sql.Int, filters.limit);
+
+
   }
 }

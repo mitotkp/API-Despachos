@@ -64,4 +64,14 @@ export class cFacturaController {
       res.status(500).json({ error: error.message });
     }
   }
+
+  static async search(req, res) {
+    try {
+      const resultados = await cFacturasService.search(req.query);
+      res.json(resultados);
+    } catch (error) {
+      if (error.name === "ZodError") return res.status(400).json(error.errors);
+      res.status(500).json({ error: error.message });
+    }
+  }
 }
