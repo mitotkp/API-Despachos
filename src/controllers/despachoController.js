@@ -3,6 +3,16 @@ import { z } from "zod";
 
 export class cDespachoController {
 
+  static async listar(req, res) {
+    try {
+      const { page, limit } = req.query;
+      const resultado = await cDespachosService.getAll({ page, limit });
+      res.status(200).json(resultado);
+    } catch (error) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+
   static async crear(req, res) {
     try {
       const resultado = await cDespachosService.procesarDespachos(req.body);

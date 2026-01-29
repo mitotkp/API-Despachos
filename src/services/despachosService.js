@@ -3,8 +3,8 @@ import { getConnection, sql } from "../config/db.js";
 import { cQuerys } from "../querys/querys.js";
 
 const paginationSchema = z.object({
-  page: z.number().int().min(1).default(1),
-  limit: z.number().int().min(1).max(100).default(10),
+  page: z.coerce.number().int().min(1).default(1),
+  limit: z.coerce.number().int().min(1).max(100).default(10),
 });
 
 const despachoSchema = z.object({
@@ -30,6 +30,46 @@ const despachoSchema = z.object({
 const despachosArraySchema = z.array(despachoSchema);
 
 export class cDespachosService {
+
+  static async getAll(params) {
+    const { page = 1, limit = 10 } = paginationSchema.parse(params);
+    const offset = (page - 1) * limit;
+
+    const pool = await getConnection();
+
+    const [dataResult, countResult] = await Promise.all([
+      pool.request()
+        .input("OFFSET", sql.Int, offset)
+        .input("LIMIT", sql.Int, limit)
+        .query(cQuerys.getDespachos),
+
+      pool.request()
+        .query(cQuerys.getCountDespachos)
+    ]);
+
+    const despachos = dataResult.recordset.map(row => {
+
+      const { items, ITEMS, ...restoDatos } = row;
+
+      const jsonString = item || ITEMS;
+
+      return {
+        ...restoDatos,
+        items: jsonString ? JSON.parse(jsonString) : []
+      };
+    });
+
+    const total = countResult.recordset[0].total;
+
+    return {
+      data: despachos,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit)
+    }
+  }
+
   /**
    * Procesa las inserciones de despachos 
    * @param {Array | Object } entrada

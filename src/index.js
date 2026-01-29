@@ -64,7 +64,7 @@ const startServer = async () => {
       - GET  /api/albaranes/alDetailOnly?serie=serie&numero=numero
       - GET  /api/clientes
       - GET  /api/clientes/cliente?codCliente=codCliente
-      - GET /api/despachos
+      - GET /api/despachos?page=page&limit=limit
       - GET /api/despachos/despacho?numDespacho=numDespacho
       - POST /api/despachos/procesarDespachos
       `);

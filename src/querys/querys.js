@@ -232,6 +232,45 @@ export class cQuerys {
 
   //4. DESPACHOS
 
+  static getDespachos = `
+    SELECT 
+      DC.NUMDESPACHO, 
+      DC.RUTA, 
+      DC.TRANSPORTISTA, 
+      DC.NIF20, 
+      DC.UNIDAD, 
+      DC.PLACA1, 
+      DC.TRASBORDO, 
+      DC.PLACA2, 
+      DC.DESPACHADO, 
+      DC.RUTERO, 
+      DC.FECHADESPACHO,
+      (
+          SELECT 
+              DL.SERIEDOC,
+              DL.NUMDOC,
+              DL.TIPODOC,
+              DL.IDPEDIDO,
+              DL.CODCLIENTE
+          FROM 
+              RIP.DESPACHOSLIN DL
+          WHERE 
+              DL.NUMDESPACHO = DC.NUMDESPACHO
+          FOR JSON PATH
+      ) AS items
+  FROM 
+      RIP.DESPACHOSCAB DC
+  ORDER BY 
+      DC.FECHADESPACHO DESC, 
+      DC.NUMDESPACHO DESC
+  OFFSET @OFFSET ROWS 
+  FETCH NEXT @LIMIT ROWS ONLY
+  `;
+
+  static getCountDespachos = `
+    SELECT COUNT(*) as total FROM RIP.DESPACHOSCAB
+  `;
+
   static insertarDespachosMasivo = `
     BEGIN TRY 
       BEGIN TRANSACTION; 
