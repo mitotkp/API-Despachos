@@ -1,5 +1,6 @@
 import { cDespachosService } from "../services/despachosService.js";
 import { z } from "zod";
+import { buscadorDespachosSchema } from "../schemas/buscarDespachoSchema.js";
 
 export class cDespachoController {
 
@@ -37,6 +38,19 @@ export class cDespachoController {
 
       res.status(500).json({ message: error.message });
 
+    }
+  }
+
+  static async buscar(req, res) {
+    try {
+      const validated = buscadorDespachosSchema.parse(req.query);
+      const resultado = await cDespachosService.search(validated);
+      res.status(200).json(resultado);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ message: "Datos inválidos", errors: error.errors });
+      }
+      res.status(500).json({ message: error.message });
     }
   }
 

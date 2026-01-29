@@ -14,3 +14,7 @@ despachoRoutes.get("/despDetail", cDespachoController.getDespachoCompleto);
 //3. Procesa las inserciones de despachos 
 //POST /api/despachos/subirDespachos
 despachoRoutes.post("/subirDespachos", cDespachoController.crear);
+
+//4. Busca despachos
+//GET /api/despachos/buscar?page=1&limit=10&ruta=ruta&transportista=transportista&estado=estado&codCliente=codCliente&numDoc=numDoc&fechaDesde=fechaDesde&fechaHasta=fechaHasta&termino=termino
+despachoRoutes.get("/buscar", cDespachoController.buscar);

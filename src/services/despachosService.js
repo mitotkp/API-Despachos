@@ -1,6 +1,7 @@
-import { success, z } from "zod";
+import { z } from "zod";
 import { getConnection, sql } from "../config/db.js";
 import { cQuerys } from "../querys/querys.js";
+import { buscadorDespachosSchema } from "../schemas/buscarDespachoSchema.js";
 
 const paginationSchema = z.object({
   page: z.coerce.number().int().min(1).default(1),
@@ -133,6 +134,132 @@ export class cDespachosService {
     return {
       cabecera: result.recordset[0],
       detalle: result.recordset
+    }
+  }
+
+  static async search(params) {
+    const filters = buscadorDespachosSchema.parse(params);
+    const pool = await getConnection();
+    const request = pool.request();
+
+    let query = `
+      SELECT DISTINCT
+        C.NUMDESPACHO, 
+        C.RUTA, 
+        C.TRANSPORTISTA, 
+        C.NIF20, 
+        C.UNIDAD, 
+        C.PLACA1, 
+        C.TRASBORDO, 
+        C.PLACA2, 
+        C.DESPACHADO, 
+        C.RUTERO, 
+        C.FECHADESPACHO,
+        (
+          SELECT 
+            L.SERIEDOC, L.NUMDOC, L.TIPODOC, L.IDPEDIDO, L.CODCLIENTE
+          FROM RIP.DESPACHOSLIN L
+          WHERE L.NUMDESPACHO = C.NUMDESPACHO
+          FOR JSON PATH
+        ) AS items
+      FROM 
+        RIP.DESPACHOSCAB C
+    `;
+
+    const necesitaLineas = filters.codCliente || filters.numDoc;
+
+    if (necesitaLineas) {
+      query += " INNER JOIN RIP.DESPACHOSLIN L ON C.NUMDESPACHO = L.NUMDESPACHO ";
+    }
+
+    let whereClause = " WHERE 1=1 ";
+
+    if (filters.ruta) {
+      whereClause += " AND C.RUTA = @Ruta ";
+      request.input("Ruta", sql.NVarChar, filters.ruta);
+    }
+
+    if (filters.transportista) {
+      whereClause += " AND C.TRANSPORTISTA LIKE '%' + @Transportista + '%' ";
+      request.input("Transportista", sql.NVarChar, filters.transportista);
+    }
+
+    if (filters.estado) {
+      whereClause += " AND C.DESPACHADO = @Estado ";
+      request.input("Estado", sql.VarChar, filters.estado);
+    }
+
+    if (filters.fechaDesde) {
+      whereClause += " AND C.FECHADESPACHO >= @FechaDesde ";
+      request.input("FechaDesde", sql.VarChar, filters.fechaDesde);
+    }
+
+    if (filters.fechaHasta) {
+      whereClause += " AND C.FECHADESPACHO <= @FechaHasta ";
+      request.input("FechaHasta", sql.VarChar, filters.fechaHasta + ' 23:59:59');
+    }
+
+    if (filters.codCliente) {
+      whereClause += " AND L.CODCLIENTE = @CodCliente ";
+      request.input("CodCliente", sql.Int, filters.codCliente);
+    }
+
+    if (filters.numDoc) {
+      whereClause += " AND (L.NUMDOC = @NumDoc OR L.IDPEDIDO = @NumDoc) ";
+      request.input("NumDoc", sql.NVarChar, filters.numDoc);
+    }
+
+    if (filters.termino) {
+      whereClause += ` AND (
+        C.NUMDESPACHO LIKE '%' + @Termino + '%' OR 
+        C.PLACA1 LIKE '%' + @Termino + '%' OR
+        C.TRANSPORTISTA LIKE '%' + @Termino + '%'
+      ) `;
+      request.input("Termino", sql.NVarChar, filters.termino);
+    }
+
+    const offset = (filters.page - 1) * filters.limit;
+    request.input("Offset", sql.Int, offset);
+    request.input("Limit", sql.Int, filters.limit);
+
+    const finalQuery = `
+      ${query}
+      ${whereClause}
+      ORDER BY C.FECHADESPACHO DESC, C.NUMDESPACHO DESC
+      OFFSET @Offset ROWS FETCH NEXT @Limit ROWS ONLY
+    `;
+
+    const countQuery = `
+      SELECT COUNT(DISTINCT C.NUMDESPACHO) as total 
+      FROM RIP.DESPACHOSCAB C
+      ${necesitaLineas ? 'INNER JOIN RIP.DESPACHOSLIN L ON C.NUMDESPACHO = L.NUMDESPACHO' : ''}
+      ${whereClause}
+    `;
+
+    const [dataResult, countResult] = await Promise.all([
+      request.query(finalQuery),
+      request.query(countQuery)
+    ]);
+
+    const despachos = dataResult.recordset.map(row => {
+      const { items, ITEMS, ...restoDatos } = row;
+      const jsonStr = items || ITEMS;
+      return {
+        ...restoDatos,
+        items: jsonStr ? JSON.parse(jsonStr) : []
+      };
+    });
+
+    const total = countResult.recordset[0].total;
+
+    return {
+      data: despachos,
+      meta: {
+        total,
+        page: filters.page,
+        limit: filters.limit,
+        totalPages: Math.ceil(total / filters.limit)
+      }
     }
   }
 

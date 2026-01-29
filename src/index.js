@@ -65,6 +65,7 @@ const startServer = async () => {
       - GET  /api/clientes
       - GET  /api/clientes/cliente?codCliente=codCliente
       - GET /api/despachos?page=page&limit=limit
+      - GET /api/despachos/buscar?page=page&limit=limit&ruta=ruta&transportista=transportista&estado=estado&codCliente=codCliente&numDoc=numDoc&fechaDesde=fechaDesde&fechaHasta=fechaHasta&termino=termino
       - GET /api/despachos/despacho?numDespacho=numDespacho
       - POST /api/despachos/procesarDespachos
       `);
