@@ -54,10 +54,12 @@ const startServer = async () => {
       Servidor listo en http://localhost:${PORT}
       DOCUMENTACIÓN:
       - GET  /api/facturas
+      - GET  /api/facturas/buscar?serie=serie&numero=numero&codCliente=codCliente&fechaDesde=fechaDesde&fechaHasta=fechaHasta&termino=termino&page=page&limit=limit
       - GET  /api/facturas/facDetail?serie=serie&numero=numero
       - GET  /api/facturas/facDetailOnly?serie=serie&numero=numero
       - GET  /health  
       - GET  /api/albaranes
+      - GET  /api/albaranes/buscar?serie=serie&numero=numero&codCliente=codCliente&fechaDesde=fechaDesde&fechaHasta=fechaHasta&termino=termino&page=page&limit=limit
       - GET  /api/albaranes/alDetail?serie=serie&numero=numero
       - GET  /api/albaranes/alDetailOnly?serie=serie&numero=numero
       - GET  /api/clientes

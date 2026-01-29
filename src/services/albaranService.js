@@ -58,49 +58,133 @@ export class cAlbaranService {
     const pool = await getConnection();
     const request = pool.request();
 
-    let query = cQuerys.auxSearchAv;
+    let whereClause = "WHERE AVC.N = 'B'";
 
     if (filters.serie) {
-      query += ` AND AVC.NUMSERIE = @SERIE`;
+      whereClause += ` AND AVC.NUMSERIE = @SERIE`;
       request.input("SERIE", sql.VarChar, filters.serie);
     }
 
     if (filters.numero) {
-      query += ` AND AVC.NUMALBARAN = @NUMERO`;
+      whereClause += ` AND AVC.NUMALBARAN = @NUMERO`;
       request.input("NUMERO", sql.Int, filters.numero);
     }
 
     if (filters.codCliente) {
-      query += ` AND AVC.CODCLIENTE = @CODCLIENTE`;
+      whereClause += ` AND AVC.CODCLIENTE = @CODCLIENTE`;
       request.input("CODCLIENTE", sql.Int, filters.codCliente);
     }
 
     if (filters.fechaDesde) {
-      query += ` AND AVC.FECHA >= @FECHADESDE`;
+      whereClause += ` AND AVC.FECHA >= @FECHADESDE`;
       request.input("FECHADESDE", sql.Date, filters.fechaDesde);
     }
 
     if (filters.fechaHasta) {
-      query += ` AND AVC.FECHA <= @FECHAHASTA`;
+      whereClause += ` AND AVC.FECHA <= @FECHAHASTA`;
       request.input("FECHAHASTA", sql.Date, filters.fechaHasta);
     }
 
     if (filters.termino) {
-      query += ` AND (C.NOMBRECLIENTE LIKE '%' + @TERMINO + '%' OR C.NIF20 LIKE '%' + @TERMINO + '%') `;
+      whereClause += ` AND (C.NOMBRECLIENTE LIKE '%' + @TERMINO + '%' OR C.NIF20 LIKE '%' + @TERMINO + '%') `;
       request.input("TERMINO", sql.VarChar, `%${filters.termino}%`);
     }
 
     const offset = (filters.page - 1) * filters.limit;
-
-    query += ` ORDER BY AVC.NUMSERIE DESC, AVC.NUMALBARAN DESC
-                OFFSET @OFFSET ROWS FETCH NEXT @LIMIT ROWS ONLY`;
-
     request.input("OFFSET", sql.Int, offset);
     request.input("LIMIT", sql.Int, filters.limit);
 
-    const result = await request.query(query);
+    const queryData = `
+      SELECT 
+          AVC.NUMSERIE
+          , AVC.NUMALBARAN
+          , AVC.NUMSERIEFAC
+          , AVC.NUMFAC
+          , AVC.FACTURADO
+          , AVC.FECHA
+          , AVC.CODCLIENTE
+          , ROUND(rip.F_GET_COTIZACION_RIP(AVC.TOTALNETO, AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 1), 2) TOTALNETO_BS
+          , ROUND(rip.F_GET_COTIZACION_RIP(AVC.TOTALNETO, AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 2), 2) TOTALNETO_USD
+          , C.NOMBRECLIENTE
+          , C.NIF20
+          , C.DIRECCION1
+          ,(
+          SELECT 
+              AVL.CODARTICULO
+            , MAX(AVL.DESCRIPCION) AS DESCRIPCION
+            , ROUND((rip.F_GET_COTIZACION_RIP(MAX(AVL.PRECIO), AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 1 )), 2) PRECIOBS
+            , ROUND((rip.F_GET_COTIZACION_RIP(MAX(AVL.PRECIO), AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 2 )), 2) PRECIOUSD
+            , MAX(AVL.REFERENCIA) AS REFERENCIA
+            , MAX(AVL.CODALMACEN) AS ALMACEN
+            , MIN(AL.TALLA) AS TALLA
+            , MIN(AL.COLOR) AS COLOR
+            , SUM(AVL.UNIDADESTOTAL) AS CANTIDAD
+        FROM 
+            ALBVENTALIN AVL
+            LEFT JOIN ARTICULOSLIN AL ON AVL.CODARTICULO = AL.CODARTICULO AND AVL.TALLA = AL.TALLA AND AVL.COLOR = AL.COLOR
+            LEFT JOIN ARTICULOS A ON AVL.CODARTICULO = A.CODARTICULO
+        WHERE
+            AVL.NUMSERIE = AVC.NUMSERIE
+            AND AVL.NUMALBARAN = AVC.NUMALBARAN
+            AND AVL.N = AVC.N
+        GROUP BY 
+            AVL.CODARTICULO
+        FOR JSON PATH
+        ) AS items
+      FROM
+        ALBVENTACAB AVC
+        LEFT JOIN CLIENTES C ON AVC.CODCLIENTE = C.CODCLIENTE
+      ${whereClause}
+      ORDER BY
+        AVC.NUMSERIE DESC, 
+        AVC.NUMALBARAN DESC
+      OFFSET @OFFSET ROWS
+      FETCH NEXT @LIMIT ROWS ONLY;
+    `;
 
-    return result.recordset;
+    const queryCount = `
+      SELECT COUNT(*) AS total
+      FROM ALBVENTACAB AVC
+      LEFT JOIN CLIENTES C ON AVC.CODCLIENTE = C.CODCLIENTE
+      ${whereClause}
+    `;
+
+    const [dataResult, countResult] = await Promise.all([
+      request.query(queryData),
+
+      pool.request()
+        .input("SERIE", sql.VarChar, filters.serie)
+        .input("NUMERO", sql.Int, filters.numero)
+        .input("CODCLIENTE", sql.Int, filters.codCliente)
+        .input("FECHADESDE", sql.Date, filters.fechaDesde)
+        .input("FECHAHASTA", sql.Date, filters.fechaHasta)
+        .input("TERMINO", sql.VarChar, `%${filters.termino}%`)
+        .query(queryCount)
+    ]);
+
+    const albaranes = dataResult.recordset.map(row => {
+
+      const { items, ITEMS, ...restoDatos } = row;
+
+      const jsonString = items || ITEMS;
+
+      return {
+        ...restoDatos,
+        items: jsonString ? JSON.parse(jsonString) : []
+      };
+    });
+
+    const total = countResult.recordset[0].total;
+
+    return {
+      data: albaranes,
+      meta: {
+        total,
+        page: filters.page,
+        limit: filters.limit,
+        totalPages: Math.ceil(total / filters.limit),
+      },
+    };
   }
 
   /**

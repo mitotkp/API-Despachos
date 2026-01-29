@@ -113,6 +113,7 @@ export class cFacturasService {
    */
 
   static async search(params) {
+
     const filters = searchSchema.parse(params);
     const pool = await getConnection();
     const request = pool.request();
@@ -152,6 +153,91 @@ export class cFacturasService {
     const offset = (filters.page - 1) * filters.limit;
     request.input("OFFSET", sql.Int, offset);
     request.input("LIMIT", sql.Int, filters.limit);
+
+    const queryData = `
+      SELECT 
+          FV.NUMSERIE, 
+          FV.NUMFACTURA, 
+          FV.FECHA, 
+          FV.CODCLIENTE,
+          ROUND(rip.F_GET_COTIZACION_RIP(FV.TOTALNETO, FV.FECHA, FV.FACTORMONEDA, FV.CODMONEDA, 1), 2) TOTALNETO_BS, 
+          ROUND(RIP.F_GET_COTIZACION_RIP(FV.TOTALNETO, FV.FECHA, FV.FACTORMONEDA, FV.CODMONEDA, 2), 2) AS TOTALNETO_USD, 
+          C.NOMBRECLIENTE,
+          C.NIF20,
+          C.DIRECCION1,
+          (
+            SELECT 
+              AVL.CODARTICULO,
+              MAX(AVL.DESCRIPCION) AS DESCRIPCION, 
+              ROUND((RIP.F_GET_COTIZACION_RIP(MAX(PRECIO), MAX(AVC.FECHA), MAX(AVC.FACTORMONEDA), MAX(AVC.CODMONEDA), 1 )), 2) PRECIOBS,
+              ROUND((RIP.F_GET_COTIZACION_RIP(MAX(PRECIO), MAX(AVC.FECHA), MAX(AVC.FACTORMONEDA), MAX(AVC.CODMONEDA), 2 )), 2) PRECIOUSD,
+              MAX(AVL.REFERENCIA) AS REFERENCIA,
+              MAX(AVL.CODALMACEN) AS ALMACEN, 
+              MIN(AL.TALLA) AS TALLA, 
+              MIN(AL.COLOR) AS COLOR,
+              SUM(AVL.UNIDADESTOTAL) AS CANTIDAD
+            FROM 
+              ALBVENTALIN AVL 
+              INNER JOIN ALBVENTACAB AVC ON AVL.NUMSERIE = AVC.NUMSERIE AND AVL.NUMALBARAN = AVC.NUMALBARAN AND AVL.N = AVC.N
+              LEFT JOIN ARTICULOSLIN AL ON AVL.CODARTICULO = AL.CODARTICULO AND AVL.TALLA = AL.TALLA AND AVL.COLOR = AL.COLOR
+              LEFT JOIN ARTICULOS A ON AVL.CODARTICULO = A.CODARTICULO
+            WHERE
+              AVC.NUMSERIEFAC = FV.NUMSERIE 
+              AND AVC.NUMFAC = FV.NUMFACTURA
+              AND AVC.NFAC = 'B'
+            GROUP BY 
+              AVL.CODARTICULO
+            FOR JSON PATH
+          ) AS items
+      FROM 
+        FACTURASVENTA FV 
+      LEFT JOIN 
+        CLIENTES C ON FV.CODCLIENTE = C.CODCLIENTE
+      ${whereClause}
+      ORDER BY 
+        FV.FECHA DESC, 
+        FV.NUMFACTURA DESC
+      OFFSET @OFFSET ROWS FETCH NEXT @LIMIT ROWS ONLY
+    `;
+
+    const queryCount = `
+      SELECT COUNT(*) AS total
+      FROM 
+        FACTURASVENTA FV 
+      LEFT JOIN 
+        CLIENTES C ON FV.CODCLIENTE = C.CODCLIENTE
+      ${whereClause}
+    `;
+
+    const [dataResult, countResult] = await Promise.all([
+      request.query(queryData),
+
+      pool.request()
+        .input("SERIE", sql.VarChar, filters.serie)
+        .input("NUMERO", sql.Int, filters.numero)
+        .input("CODCLIENTE", sql.Int, filters.codCliente)
+        .input("FECHADESDE", sql.Date, filters.fechaDesde)
+        .input("FECHAHASTA", sql.Date, filters.fechaHasta)
+        .input("TERMINO", sql.VarChar, `%${filters.termino}%`)
+        .query(queryCount)
+    ]);
+
+    const facturas = dataResult.recordset.map(f => ({
+      ...f,
+      items: f.items ? JSON.parse(f.items) : []
+    }));
+
+    const total = countResult.recordset[0].total;
+
+    return {
+      data: facturas,
+      meta: {
+        total: total,
+        page: filters.page,
+        limit: filters.limit,
+        totalPages: Math.ceil(total / filters.limit)
+      }
+    }
 
 
   }

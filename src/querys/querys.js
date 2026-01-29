@@ -178,27 +178,6 @@ export class cQuerys {
         FETCH NEXT @LIMIT ROWS ONLY
   `;
 
-  static auxSearchAv = `
-      SELECT 
-          AVC.NUMSERIE
-          , AVC.NUMALBARAN
-          , AVC.NUMSERIEFAC
-          , AVC.NUMFAC
-          , AVC.FACTURADO
-          , AVC.FECHA
-          , AVC.CODCLIENTE
-          , ROUND(rip.F_GET_COTIZACION_RIP(AVC.TOTALNETO, AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 1), 2) TOTALNETO_BS
-          , ROUND(rip.F_GET_COTIZACION_RIP(AVC.TOTALNETO, AVC.FECHA, AVC.FACTORMONEDA, AVC.CODMONEDA, 2), 2) TOTALNETO_USD
-          , C.NOMBRECLIENTE
-          , C.NIF20
-          , C.DIRECCION1
-        FROM 
-            ALBVENTACAB AVC 
-            LEFT JOIN CLIENTES C ON AVC.CODCLIENTE = C.CODCLIENTE
-        WHERE 
-            AVC.N = 'B'
-  `;
-
   static getAlbaranVenta = `
         SELECT 
           AVC.NUMSERIE
